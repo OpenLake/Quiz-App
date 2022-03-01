@@ -1,15 +1,21 @@
 import { Button, CircularProgress, Grid, LinearProgress, Paper, Typography } from '@material-ui/core';
-import axios from 'axios';
+
 import React, { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
+
+import axios from 'axios';
+
 import Leaderboard from './Leaderboard';
+
 import useStyles from './Styles/QuizAreaStyles';
+import ErrorAlert from './ErrorAlert';
 
 
 const Home = () => {
   const classes = useStyles();
   const { quizid } = useParams();
 
+  const [user, setUser] = useState(null);
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [index, setIndex] = useState(-1);
@@ -19,6 +25,7 @@ const Home = () => {
   const [selectedButton, setSelectedButton] = useState('');
   const [showAnswer, setShowAnswer] = useState(false);
   const [score, setScore] = useState(0);
+  const [errors, setErrors] = useState([]);
 
   const timeRef = useRef(-1);
   const selectdButtonRef = useRef(null);
@@ -31,62 +38,84 @@ const Home = () => {
 
   // This function is used to color the option button when it is selected
   const colorButton = (optionID , bgcolor , color) => {
-      if(optionID === '') // if option id is empty string then selected option would be undefined
-      return; // So, we are exiting from function before any error
+
+        if(optionID === '') // if option id is empty string then selected option would be undefined
+        {
+            return; // So, we are exiting from function before any error
+        }
 
 
-      const slctdOption = document.getElementById(optionID); // Get the button with given option id
-      slctdOption.style.backgroundColor = bgcolor; // change the background color
-      slctdOption.style.color = color; // change the font color
-  }
+        const slctdOption = document.getElementById(optionID); // Get the button with given option id
+        slctdOption.style.backgroundColor = bgcolor; // change the background color
+        slctdOption.style.color = color; // change the font color
+    }
 
 
 
 
   // This function is used to color the button based on circumstances
-  const changeButton = (optionID) =>{
-      if( showAnswer )
-      return;
+  const changeButton = (optionID) => {
+        if( showAnswer ) return; // If Quiz Area is in show answer state then any button color should not change on clicking
 
-    // If the selected button is selected again
-      if(selectedButton === optionID)
-      {
-        colorButton(selectedButton , 'white' , 'black'); // uncolor the button
-        setSelectedButton(''); // and set selected button to null
-        selectdButtonRef.current = '';
+        // If the selected button is selected again
+        if(selectedButton === optionID)
+        {
+            colorButton(selectedButton , 'white' , 'black'); // uncolor the button
+            setSelectedButton(''); // and set selected button to null
+            selectdButtonRef.current = '';
+        }
+        // If any other button is selected again
+        else
+        {
+            colorButton(optionID , '#2196f3' , 'white'); // color the currently selected button
+            colorButton(selectedButton , 'white' , 'black'); // uncolor the previously selected button
+            setSelectedButton(optionID); // set the currently selected button
+            selectdButtonRef.current = optionID;
+        }
     }
-    // If any other button is selected again
-    else
-    {
-        colorButton(optionID , '#2196f3' , 'white'); // color the currently selected button
-        colorButton(selectedButton , 'white' , 'black'); // uncolor the previously selected button
-        setSelectedButton(optionID); // set the currently selected button
-        selectdButtonRef.current = optionID;
-      }
-  }
 
+  // This function is used to check the answer and change the styling accordingly
   const checkAnswer = () => {
     
-    clearInterval(interval); // [ NOT WORKING ] stop the timer
+        clearInterval(interval); // [ NOT WORKING ] stop the timer
 
-    showAnswerRef.current = true;
-    setShowAnswer(showAnswerRef.current); // set the state of page to show the answer
+        showAnswerRef.current = true;
+        setShowAnswer(showAnswerRef.current); // set the state of page to show the answer
 
-    if(selectdButtonRef.current === correctOptionRef.current) // if the option selected by user is correct option
-    {
-        colorButton(correctOptionRef.current , '#00e676' , 'white'); // show the correct option in green
-        setScore( prevscore => {
-            let newscore = timeRef.current / timeGivenforQ * 1000;
-            newscore += prevscore;
-            return newscore;
-        }); // update the score
+        if(selectdButtonRef.current === correctOptionRef.current) // if the option selected by user is correct option
+        {
+            colorButton(correctOptionRef.current , '#00e676' , 'white'); // show the correct option in green
+            setScore( prevscore => {
+                let newscore = Math.round(timeRef.current / timeGivenforQ * 1000);
+                newscore += prevscore;
+                return newscore;
+            }); // update the score
+
+            // If the answer is correct and user is present, then update the score to Database
+            if(user)
+            {
+                const scoreData = {
+                    userid: user.userid,
+                    score
+                };
+
+                /**
+                 * Axios request to update the score of current user in current quiz to Database
+                 * This PUT request sends the score data which holds the user id of user and his/her score to server,
+                 * and receives a response or error from server
+                 */
+                axios.put(`http://localhost:5000/updatescore/${quizid}` , scoreData)
+                // .then( () => console.log('updated successfully'))
+                .catch( (err) => setErrors([ { id : 0 , msg : err.message} ]));
+
+            }
+        }
+        else // if the option selected by user is incorrect
+        {
+            colorButton(correctOptionRef.current , '#00e676' , 'white'); // show the correct option in green
+            colorButton(selectdButtonRef.current , '#f50057' , 'white'); // show the selected incorrect option in red
+        }
     }
-    else // if the option selected by user is incorrect
-    {
-        colorButton(correctOptionRef.current , '#00e676' , 'white'); // show the correct option in green
-        colorButton(selectdButtonRef.current , '#f50057' , 'white'); // show the selected incorrect option in red
-    }
-  }
 
 
   /**
@@ -96,24 +125,31 @@ const Home = () => {
 
   useEffect(() => {
 
+        /** setting the user data to state of this component from localstorage */
+        setUser(JSON.parse(localStorage.getItem('userData')));
+
         /**
-         * This axios get request is calling the server to give
+         * This axios GET request is calling the server to give
          * the details of the specific quiz with the given id
          * and then setting the quiz data with it
          */
-        axios.get(`http://localhost:5000/quiz/${quizid}`)
+        axios.get(`http://localhost:5000/quiz/${quizid}` , {
+            headers : {
+                'auth-token' : localStorage.getItem('userToken')
+            }
+        })
         .then(data => {
             setQuizData(data.data);
             setIsLoading(false);
             setIndex(0);
         })
-        .catch( err => alert(`The following error occured : ${err.message}`));
+        .catch( err => setErrors([ { id : 0 , msg : err.message} ]));
 
 
         // return () => {
         //     clearInterval(interval);
         // }
-  }, []);
+    }, []);
 
 
   /**
@@ -143,7 +179,9 @@ const Home = () => {
     }
 
     if(interval) // [ NOT WORKING ] if timer is running then stop it
-    clearInterval(interval);
+    {
+        clearInterval(interval);
+    }
       
     /**  -------------------------------Timer------------------------------------------------  */
     interval = setInterval(() => {
@@ -155,11 +193,15 @@ const Home = () => {
         {
             clearInterval(interval); // stop the timer
             if(!showAnswerRef.current) // if show answer state is not activated
-            checkAnswer(); // then check the answer and activate the show answer state
+            {
+                checkAnswer(); // then check the answer and activate the show answer state
+            }
         }
 
         if(showAnswerRef.current) // if show answer state has been activated
-        clearInterval(interval); // stop the timer
+        {
+            clearInterval(interval); // stop the timer
+        }
 
     }, 1000);
     
@@ -173,12 +215,14 @@ const Home = () => {
     
     // loop to get the correct answer
     if(!isLoading)
-    for(let i = 0; i < quizData.questions[index].options.length ; i +=1 )
     {
-        if(quizData.questions[index].correct_answer === quizData.questions[index].options[i])
+        for(let i = 0; i < quizData.questions[index].options.length ; i +=1 )
         {
-            correctOptionRef.current = `option_${i+1}`;
-            break;
+            if(quizData.questions[index].correct_answer === quizData.questions[index].options[i])
+            {
+                correctOptionRef.current = `option_${i+1}`;
+                break;
+            }
         }
     }
 
@@ -186,18 +230,23 @@ const Home = () => {
       return () => {
           clearInterval(interval); // whenever this use effect unmounts, stop the timer
       }
-  }, [index]);
+      
+    }, [index]);
   
   function incrementIndex()
   {
     showAnswerRef.current = false; // whenever next question appears, turn off the show answer state
     setShowAnswer(showAnswerRef.current);
 
-    if(index + 1 < quizData.questions.length)
-    setIndex( ind => ind + 1);
+    if(index + 1 < quizData.questions.length) // If the index of the next question is available or is less than the length of questions array
+    {
+        setIndex( ind => ind + 1); // then set the index to next index
+    }
 
-    else
-    setIndex(0);
+    else // otherwise
+    {
+        window.location.replace(`\\quizfinal\\${quizid}`); // take the user to the Quiz Final page
+    }
 
   }
 
@@ -208,16 +257,17 @@ const Home = () => {
 
 
   if(isLoading)
-  return (
-      <div className={classes.loadingArea}>
-          <CircularProgress />
-      </div>
-  )
+    return (
+        <div className={classes.loadingArea}>
+            <CircularProgress />
+        </div>
+    )
 
   return (
       <div className={classes.backgroundArea}>
+
+        { errors.length === 0 ? '' : (<ErrorAlert errors={errors} setErrors={setErrors}/>) }
         
-        { console.log(score) }
         {/* --------------------------------------------------Name of the Quiz--------------------------------------------- */}
         <Paper elevation={3} className={classes.heading}>
             <Typography 
@@ -320,7 +370,9 @@ const Home = () => {
             Open Leaderboard
         </Button>
 
-        <Leaderboard open={open} setOpen={setOpen}/>
+        { open && (
+            <Leaderboard open={open} setOpen={setOpen} quizid={quizid}/>
+        )}
         
       </div>
   );
