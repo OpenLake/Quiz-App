@@ -1,28 +1,29 @@
-import React, { useEffect, useState } from 'react';
 import {
-  AppBar,
+  Button,
   CircularProgress,
-  Dialog,
-  IconButton,
   Paper,
   styled,
   Table,
   TableBody,
   TableCell,
+  tableCellClasses,
   TableContainer,
   TableHead,
   TableRow,
-  Toolbar,
+  TextField,
   Typography
-} from '@material-ui/core';
-import CloseIcon from '@material-ui/icons/Close';
-import tableCellClasses from '@material-ui/core/TableCell';
-import PropTypes from 'prop-types';
+} from '@mui/material';
+
+import React, { useEffect, useState } from 'react';
+import { useParams } from 'react-router-dom';
+
 import axios from 'axios';
+
 import ErrorAlert from './ErrorAlert';
 
-// const Transition = React.forwardRef((props, ref) => <Slide direction="up" ref={ref} {...props} />);
-
+/** These functions are styling the rows of React table
+ *  [MAYBE NOT WORKING]
+ */
 const StyledTableCell = styled(TableCell)(({ theme }) => ({
   [`&.${tableCellClasses.head}`]: {
     backgroundColor: theme.palette.common.blue,
@@ -43,22 +44,21 @@ const StyledTableRow = styled(TableRow)(({ theme }) => ({
   }
 }));
 
-const Leaderboard = ({ open, setOpen, quizid }) => {
+const QuizFinal = () => {
+  const { quizid } = useParams();
+
   const [leaderboard, setLeaderboard] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errors, setErrors] = useState([]);
+
   const serverURL = process.env.REACT_APP_SERVER_URL;
 
-  /** This use effect runs whenever the Leaderboard component mounts in QuizArea
-   *  and it fetches the quiz data every time from the server
-   *  and then set the leaderboard state to the leaderboard array of that quiz
+  /**
+   * This axios get request is calling the server to give
+   * the details of the specific quiz with the given id
+   * and then setting the quiz data with it
    */
   useEffect(() => {
-    /**
-     * This axios get request is calling the server to give
-     * the details of the specific quiz with the given id
-     * and then setting the quiz data with it
-     */
     axios
       .get(`${serverURL}quiz/${quizid}`, {
         headers: {
@@ -77,6 +77,7 @@ const Leaderboard = ({ open, setOpen, quizid }) => {
         setErrors([{ id: 0, msg: err.message }]);
       });
 
+    /** when this component unmounts, initialize all states to default */
     return () => {
       setLeaderboard([]);
       setIsLoading(true);
@@ -85,53 +86,87 @@ const Leaderboard = ({ open, setOpen, quizid }) => {
   }, []);
 
   return (
-    <Dialog fullScreen open={open} onClose={() => setOpen(false)}>
+    <div>
       {errors.length === 0 ? '' : <ErrorAlert errors={errors} setErrors={setErrors} />}
 
-      {/* -----------------------------Nav Bar---------------------------------------------------- */}
-      <AppBar sx={{ position: 'relative' }}>
-        <Toolbar>
-          <IconButton
-            edge="start"
-            color="inherit"
-            onClick={() => setOpen(false)}
-            aria-label="close">
-            <CloseIcon />
-          </IconButton>
+      <div
+        style={{
+          margin: '5% 0',
+          padding: '3% 0',
+          backgroundColor: 'black'
+        }}>
+        <Paper
+          sx={{
+            width: '85%',
+            margin: '1% auto',
+            padding: '1% 0',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-evenly'
+          }}>
+          <TextField
+            variant="outlined"
+            margin="normal"
+            id="quizid"
+            name="quizid"
+            autoFocus
+            disabled
+            value={quizid}
+            sx={{
+              flex: '0.8'
+            }}
+          />
 
-          <Typography
-            variant="h6"
-            component="div"
-            style={{
-              margin: '10px auto'
-            }}>
-            Leaderboard
-          </Typography>
-        </Toolbar>
-      </AppBar>
+          <Button
+            variant="contained"
+            color="primary"
+            sx={{
+              flex: '0.1',
+              padding: '1.3% 0',
+              fontSize: '1.1rem',
+              fontWeight: 'bold'
+            }}
+            onClick={() => navigator.clipboard.writeText(quizid)}>
+            Copy
+          </Button>
+        </Paper>
+      </div>
 
       {isLoading ? (
-        <CircularProgress
+        <div
           style={{
-            margin: '10% auto'
-          }}
-        />
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}>
+          <CircularProgress />
+        </div>
       ) : (
-        <>
-          {/* ---------------------------------------Leaderboard Table------------------------------------------------ */}
+        <div
+          style={{
+            width: '90%',
+            margin: '1% auto',
+            padding: '1.5% 0',
+            borderRadius: '5px',
+            boxShadow: 'rgba(0, 0, 0, 0.35) 0px 5px 15px'
+          }}>
+          <Typography variant="h4" align="center">
+            Leaderboard
+          </Typography>
+
           <TableContainer
             component={Paper}
             style={{
-              margin: '100px auto',
-              width: '80%'
+              margin: '3% auto',
+              width: '90%'
             }}>
             <Table sx={{ minWidth: 700 }} aria-label="customized table">
               <TableHead>
                 <TableRow>
-                  <TableCell align="center" style={{ backgroundColor: 'black', color: 'white' }}>
+                  <TableCell align="center" style={{ backgroundColor: '#f03861', color: 'white' }}>
                     Name
                   </TableCell>
-                  <TableCell align="center" style={{ backgroundColor: 'black', color: 'white' }}>
+                  <TableCell align="center" style={{ backgroundColor: '#f03861', color: 'white' }}>
                     Score
                   </TableCell>
                 </TableRow>
@@ -152,15 +187,23 @@ const Leaderboard = ({ open, setOpen, quizid }) => {
 
                   return (
                     /* eslint no-underscore-dangle: ["error", { "allow": ["_id"] }] */
-                    <StyledTableRow key={row._id}>
+                    <StyledTableRow
+                      key={row._id}
+                      onClick={() => window.location.assign(`\\profile\\${row._id}`)}
+                      sx={{
+                        cursor: 'pointer',
+                        '&:hover': {
+                          backgroundColor: 'rgba(0, 0, 0, 0.18)'
+                        }
+                      }}>
                       <StyledTableCell
                         component="th"
                         scope="row"
                         align="center"
-                        style={currUserCellStyle}>
+                        sx={currUserCellStyle}>
                         {row.name}
                       </StyledTableCell>
-                      <StyledTableCell align="center" style={currUserCellStyle}>
+                      <StyledTableCell align="center" sx={currUserCellStyle}>
                         {row.score}
                       </StyledTableCell>
                     </StyledTableRow>
@@ -169,17 +212,10 @@ const Leaderboard = ({ open, setOpen, quizid }) => {
               </TableBody>
             </Table>
           </TableContainer>
-        </>
+        </div>
       )}
-    </Dialog>
+    </div>
   );
 };
 
-// Props validation
-Leaderboard.propTypes = {
-  open: PropTypes.bool.isRequired,
-  setOpen: PropTypes.func.isRequired,
-  quizid: PropTypes.string.isRequired
-};
-
-export default Leaderboard;
+export default QuizFinal;
