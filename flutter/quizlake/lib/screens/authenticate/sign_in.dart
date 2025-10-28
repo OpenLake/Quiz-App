@@ -109,8 +109,8 @@ class _SignInState extends State<SignIn> {
                   SizedBox(
                     child: ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
-                            primary: Colors.white,
-                            onPrimary: Colors.black,
+                            backgroundColor: Colors.white,
+                            foregroundColor: Colors.black,
                             minimumSize: Size(double.infinity, 50)),
                         icon: FaIcon(
                           FontAwesomeIcons.google,
